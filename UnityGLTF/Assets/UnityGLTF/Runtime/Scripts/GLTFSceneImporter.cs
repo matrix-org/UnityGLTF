@@ -832,6 +832,13 @@ namespace UnityGLTF
 			var newTargets = new List<Dictionary<string, AttributeAccessor>>(primitive.Targets.Count);
 			_assetCache.MeshCache[meshIndex].Primitives[primitiveIndex].Targets = newTargets;
 
+			static void AddNewBufferAndViewToAccessor(byte[] data, Accessor accessor, GLTFRoot _gltfRoot)
+			{
+				_gltfRoot.Buffers.Add(new GLTFBuffer() { ByteLength = (uint) data.Length });
+				_gltfRoot.BufferViews.Add(new BufferView() { ByteLength = (uint) data.Length, ByteOffset = 0, Buffer = new BufferId() { Id = _gltfRoot.Buffers.Count, Root = _gltfRoot } });
+				accessor.BufferView = new BufferViewId() { Id = _gltfRoot.BufferViews.Count - 1, Root = _gltfRoot };
+			}
+
 			for (int i = 0; i < primitive.Targets.Count; i++)
 			{
 				var target = primitive.Targets[i];
@@ -855,10 +862,7 @@ namespace UnityGLTF
 							Stream = new MemoryStream(bufferData, 0, bufferData.Length, false, true)
 						};
 
-						_gltfRoot.Buffers.Add(new GLTFBuffer() { ByteLength = (uint) bufferData.Length });
-						_gltfRoot.BufferViews.Add(new BufferView() { ByteLength = (uint) bufferData.Length, ByteOffset = 0, Buffer = new BufferId() { Id = _gltfRoot.Buffers.Count, Root = _gltfRoot } });
-						accessor.BufferView = new BufferViewId() { Id = _gltfRoot.BufferViews.Count - 1, Root = _gltfRoot };
-						_assetCache.BufferCache [_gltfRoot.Buffers.Count - 1] = bufferCacheData;
+						AddNewBufferAndViewToAccessor(bufferData, accessor, _gltfRoot);
 					}
 					else
 					{
@@ -887,14 +891,20 @@ namespace UnityGLTF
 						// need to duplicate the existing buffer since we need to apply sparse data on top of it
 						if (accessor.BufferView != null)
 						{
-							// var ms = new MemoryStream();
-							// await bufferCacheData.Stream.CopyToAsync(ms);
-							// var indices2 = accessor.Sparse.Indices.BufferView.Value.
-							// for(int i = 0; i < valuesBuffer.)
-							// bufferCacheData = new BufferCacheData()
-							// {
-							// 	Stream = ms
-							// };
+							var bufferView = accessor.BufferView.Value;
+							bufferCacheData.Stream.Position = bufferView.ByteOffset;
+							var currentData = new byte[bufferView.ByteLength];
+
+							// stream.Read only accepts int for length
+							uint remainingSize = bufferView.ByteLength;
+							while (remainingSize != 0)
+							{
+								int sizeToLoad = (int)System.Math.Min(remainingSize, int.MaxValue);
+								bufferCacheData.Stream.Read(currentData, (int)(bufferView.ByteLength - remainingSize), sizeToLoad);
+								remainingSize -= (uint)sizeToLoad;
+							}
+
+							AddNewBufferAndViewToAccessor(currentData, accessor, _gltfRoot);
 						}
 					}
 
