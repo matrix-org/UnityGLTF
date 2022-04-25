@@ -78,9 +78,18 @@ namespace UnityGLTF
 			try
 			{
 				var isFileUri = GLTFUri.StartsWith("file://");
+				var isBlobUri = GLTFUri.StartsWith("blob:");
                 Factory = Factory ?? ScriptableObject.CreateInstance<DefaultImporterFactory>();
 
-				if (UseStream || isFileUri)
+                string dir = URIHelper.GetDirectoryName(GLTFUri);
+                importOptions.DataLoader = new UnityWebRequestLoader(dir);
+                sceneImporter = Factory.CreateSceneImporter(
+	                Path.GetFileName(GLTFUri),
+	                importOptions
+                );
+
+                /*
+				if (UseStream || isFileUri || isBlobUri)
 				{
 					string fullPath;
 					if (AppendStreamingAssets && !isFileUri)
@@ -95,12 +104,11 @@ namespace UnityGLTF
 						fullPath = GLTFUri;
 					}
 
-					var uri = GLTFUri;
-					if (isFileUri) uri = uri.Substring("file://".Length);
-					string directoryPath = URIHelper.GetDirectoryName(uri);
+					if (isFileUri) fullPath = fullPath.Substring("file://".Length);
+					string directoryPath = URIHelper.GetDirectoryName(fullPath);
 					importOptions.DataLoader = new FileLoader(directoryPath);
 					sceneImporter = Factory.CreateSceneImporter(
-						Path.GetFileName(uri),
+						Path.GetFileName(fullPath),
 						importOptions
 						);
 				}
@@ -113,8 +121,8 @@ namespace UnityGLTF
 						URIHelper.GetFileFromUri(new Uri(GLTFUri)),
 						importOptions
 						);
-
 				}
+				*/
 
 				sceneImporter.SceneParent = gameObject.transform;
 				sceneImporter.Collider = Collider;
@@ -123,7 +131,12 @@ namespace UnityGLTF
 				sceneImporter.IsMultithreaded = Multithreaded;
 				sceneImporter.CustomShaderName = shaderOverride ? shaderOverride.name : null;
 
-				await sceneImporter.LoadSceneAsync(onLoadComplete:LoadCompleteAction);
+				Debug.Log("yo here");
+				await sceneImporter.LoadSceneAsync(onLoadComplete:LoadCompleteAction, progress: new Progress<ImportProgress>(
+					p =>
+					{
+						Debug.Log("Progress: " + p);
+					}));
 
 				// Override the shaders on all materials if a shader is provided
 				if (shaderOverride != null)

@@ -294,7 +294,7 @@ namespace GLTF.Schema
 			}
 		}
 
-		private static void GetTypeDetails(
+		public static void GetTypeDetails(
 			GLTFComponentType type,
 			out uint componentSize,
 			out float maxValue)

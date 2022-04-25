@@ -840,20 +840,69 @@ namespace UnityGLTF
 				//NORMALS, POSITIONS, TANGENTS
 				foreach (var targetAttribute in target)
 				{
-					BufferId bufferIdPair = targetAttribute.Value.Value.BufferView.Value.Buffer;
-					GLTFBuffer buffer = bufferIdPair.Value;
-					int bufferID = bufferIdPair.Id;
+					var accessor = targetAttribute.Value.Value;
+					var bufferCacheData = default(BufferCacheData);
 
-					if (_assetCache.BufferCache[bufferID] == null)
+					var hasBufferView = accessor.BufferView != null;
+					if (!hasBufferView)
 					{
-						await ConstructBuffer(buffer, bufferID);
+						Accessor.GetTypeDetails(accessor.ComponentType, out uint componentSize, out _);
+						var bufferData = new byte[accessor.Count * componentSize];
+
+						bufferCacheData = new BufferCacheData()
+						{
+							ChunkOffset = 0,
+							Stream = new MemoryStream(bufferData, 0, bufferData.Length, false, true)
+						};
+
+						_gltfRoot.Buffers.Add(new GLTFBuffer() { ByteLength = (uint) bufferData.Length });
+						_gltfRoot.BufferViews.Add(new BufferView() { ByteLength = (uint) bufferData.Length, ByteOffset = 0, Buffer = new BufferId() { Id = _gltfRoot.Buffers.Count, Root = _gltfRoot } });
+						accessor.BufferView = new BufferViewId() { Id = _gltfRoot.BufferViews.Count - 1, Root = _gltfRoot };
+						_assetCache.BufferCache [_gltfRoot.Buffers.Count - 1] = bufferCacheData;
+					}
+					else
+					{
+						BufferId bufferIdPair = accessor.BufferView.Value.Buffer;
+						GLTFBuffer buffer = bufferIdPair.Value;
+						int bufferID = bufferIdPair.Id;
+
+						if (_assetCache.BufferCache[bufferID] == null)
+							await ConstructBuffer(buffer, bufferID);
+
+						bufferCacheData = _assetCache.BufferCache[bufferID];
+					}
+
+					if (accessor.Sparse != null)
+					{
+						BufferId indices = accessor.Sparse.Indices.BufferView.Value.Buffer;
+						GLTFBuffer indicesBuffer = indices.Value;
+						if (_assetCache.BufferCache[indices.Id] == null)
+							await ConstructBuffer(indicesBuffer, indices.Id);
+						BufferId values = accessor.Sparse.Values.BufferView.Value.Buffer;
+						GLTFBuffer valuesBuffer = values.Value;
+						if (_assetCache.BufferCache[values.Id] == null)
+							await ConstructBuffer(valuesBuffer, values.Id);
+
+						// for reference, https://github.com/mrdoob/three.js/blob/f0e2b3453f1412b53389beb04add414e3a80023c/examples/jsm/loaders/GLTFLoader.js#L2781
+						// need to duplicate the existing buffer since we need to apply sparse data on top of it
+						if (accessor.BufferView != null)
+						{
+							// var ms = new MemoryStream();
+							// await bufferCacheData.Stream.CopyToAsync(ms);
+							// var indices2 = accessor.Sparse.Indices.BufferView.Value.
+							// for(int i = 0; i < valuesBuffer.)
+							// bufferCacheData = new BufferCacheData()
+							// {
+							// 	Stream = ms
+							// };
+						}
 					}
 
 					newTargets[i][targetAttribute.Key] = new AttributeAccessor
 					{
 						AccessorId = targetAttribute.Value,
-						Stream = _assetCache.BufferCache[bufferID].Stream,
-						Offset = (uint)_assetCache.BufferCache[bufferID].ChunkOffset
+						Stream = bufferCacheData.Stream,
+						Offset = (uint)bufferCacheData.ChunkOffset
 					};
 
 				}
