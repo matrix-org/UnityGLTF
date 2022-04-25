@@ -457,8 +457,8 @@ namespace GLTF
 
 		private static uint LoadBufferView(AttributeAccessor attributeAccessor, out byte[] bufferViewCache)
 		{
-			BufferView bufferView = attributeAccessor.AccessorId.Value.BufferView.Value;
-			uint totalOffset = bufferView.ByteOffset + attributeAccessor.Offset;
+			BufferView bufferView = attributeAccessor.AccessorId.Value?.BufferView.Value;
+			uint totalOffset = (bufferView?.ByteOffset ?? 0) + attributeAccessor.Offset;
 #if !NETFX_CORE
 			if (attributeAccessor.Stream is System.IO.MemoryStream)
 			{
