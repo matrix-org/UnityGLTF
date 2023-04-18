@@ -15,13 +15,13 @@ using UnityEngine;
 using UnityGLTF.Extensions;
 using Object = UnityEngine.Object;
 
+#if UNITY_2020_2_OR_NEWER
+using UnityEngine.Animations;
+#endif
+
 #if ANIMATION_EXPORT_SUPPORTED
 using UnityEditor;
 using UnityEditor.Animations;
-#endif
-
-#if HAVE_ANIMATIONRIGGING
-using UnityEngine.Animations.Rigging;
 #endif
 
 namespace UnityGLTF
@@ -144,7 +144,11 @@ namespace UnityGLTF
 					// if we want to handle this here, we need to find all states that match this clip
 					foreach(var state in GetAnimatorStateParametersForClip(clips[i], animatorController))
 					{
-						var speed = state.speed * (state.speedParameterActive ? animator.GetFloat(state.speedParameter) : 1f);
+						var speed = 1f;
+						if (settings.BakeAnimationSpeed)
+						{
+							speed = state.speed * (state.speedParameterActive ? animator.GetFloat(state.speedParameter) : 1f);
+						}
 						var name = clips[i].name;
 						ExportAnimationClip(clips[i], name, nodeTransform, speed);
 					}
@@ -506,11 +510,9 @@ namespace UnityGLTF
 		{
 			var clipRequiresSampling = clip.isHumanMotion;
 
-#if HAVE_ANIMATIONRIGGING
 			// we also need to bake if this Animator uses animation rigging for dynamic motion
-			var rig = transform.GetComponent<RigBuilder>();
-			if (rig && rig.enabled) clipRequiresSampling = true;
-#endif
+			var haveAnyRigComponents = transform.GetComponents<IAnimationWindowPreview>().Any(x => ((Behaviour)x).enabled);
+			if (haveAnyRigComponents) clipRequiresSampling = true;
 
 			return clipRequiresSampling;
 		}
@@ -531,10 +533,13 @@ namespace UnityGLTF
 				var animator = transform.GetComponent<Animator>();
 				var avatar = animator.avatar;
 				Object instanceCacheKey = avatar;
-#if HAVE_ANIMATIONRIGGING
-				var rig = transform.GetComponent<RigBuilder>();
-				if (rig) instanceCacheKey = rig;
+
+				// TODO fully correct would be to use all enabled components as key here
+#if UNITY_2020_2_OR_NEWER
+				var rig = transform.GetComponent<IAnimationWindowPreview>() as Behaviour;
+				if (rig && rig.enabled) instanceCacheKey = rig;
 #endif
+
 				if (clip.isHumanMotion && !avatar)
 				{
 					Debug.LogWarning(null, $"No avatar found on animated humanoid, skipping humanoid animation export on {transform.name}", transform);
